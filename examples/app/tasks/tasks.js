@@ -33,6 +33,5 @@ mjs.Define({
 	rendered: function() {
 		mjs.setRendered('tasks/new');
 		document.getElementById('newTask').focus();
-	},
-	dataBinding: true
+	}
 });

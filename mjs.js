@@ -80,12 +80,10 @@
 
 	mjs.Get = function(url, callback) {
 		var httpRequest;
-		var timeout;
 
 		function doCallback() {
 			if (httpRequest.readyState === 4) {
 				if (httpRequest.status === 200) {
-					clearTimeout(timeout);
 					return callback.call(window, httpRequest.response);
 				}
 				console.error('there was a problem in processing the request', httpRequest);
