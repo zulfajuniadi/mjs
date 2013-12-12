@@ -1,0 +1,9 @@
+<h1>Tasks</h1>
+<ul id="tasks">
+	{{#each this}}
+		<li>{{doc.title}} <button class="remove" data-id="{{doc._id}}" data-rev="{{value.rev}}">&times;</li>
+	{{else}}
+		<li>No tasks found create some below</li>
+	{{/each}}
+</ul>
+{{> 'tasks/new'}}
