@@ -1,5 +1,6 @@
 mjs.Init({
 	preInit: function(done, config) {
+		console.log('preinit called');
 		var tasks = window.tasks = new PouchDB('tasks');
 		done();
 	},
@@ -12,8 +13,9 @@ mjs.Init({
 	},
 	defaultRoute: '/tasks',
 	postInit: function(done, config) {
+		console.log('postinit called');
 		done();
 	}
 }, function() {
-	// console.log('gogo power rangers')
+	console.log('App Started')
 });

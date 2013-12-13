@@ -10,7 +10,7 @@ mjs.Define({
 					_rev: rev
 				}, function(err, response) {
 					if (err === null)
-						mjs.setDirty('tasks');
+						mjs.SetDirty('tasks');
 				})
 			}
 		}
@@ -31,7 +31,7 @@ mjs.Define({
 		}
 	},
 	rendered: function() {
-		mjs.setRendered('tasks/new');
+		mjs.SetRendered('tasks/new');
 		document.getElementById('newTask').focus();
 	}
 });

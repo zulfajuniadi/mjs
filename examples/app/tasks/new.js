@@ -10,7 +10,7 @@ mjs.Define({
 					title: value
 				}, function(err, response) {
 					if (err === null) {
-						mjs.setDirty('tasks');
+						mjs.SetDirty('tasks');
 					}
 				});
 			}

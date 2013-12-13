@@ -1,12 +1,18 @@
 /* http://projects.jga.me/routie/ */
-/* (The MIT License) */
+/* MIT License */
+
+/* MJS */
+/* https://github.com/zulfajuniadi/mjs */
+/* MIT License */
 
 (function(w) {
+	'use strict';
 
+	var mjs = {
+		Runtime: {}
+	};
 	var routes = [];
 	var map = {};
-	var reference = "routie";
-	var oldReference = w[reference];
 
 	var Route = function(path, name) {
 		this.name = name;
@@ -162,11 +168,6 @@
 		}, 1);
 	};
 
-	routie.noConflict = function() {
-		w[reference] = oldReference;
-		return routie;
-	};
-
 	var getHash = function() {
 		return window.location.hash.substring(1);
 	};
@@ -207,17 +208,9 @@
 	};
 	addListener();
 
-	w[reference] = routie;
+	mjs.Router = routie;
 
-})(window);
-
-(function(globals) {
-	'use strict';
-
-	var mjs = {
-		Runtime: {}
-	},
-		eventMaps = mjs.Runtime.events = {},
+	var eventMaps = mjs.Runtime.events = {},
 		renderMaps = mjs.Runtime.rendered = {},
 		templates = mjs.Runtime.templates = {},
 		data = mjs.Runtime.data = {},
@@ -253,6 +246,21 @@
 			element.addEventListener(type, handler, false);
 		} else {
 			element.attachEvent('on' + type, handler);
+		}
+	}
+
+	mjs.Delegate = function(element, type, target, handler) {
+		function delegateHandler(event) {
+			var elements = mjs.O2A(document.querySelectorAll(target));
+			var elementIndex = elements.indexOf(event.target);
+			if(elementIndex > -1) {
+				handler.call(elements[elementIndex], event);
+			}
+		}
+		if (element.addEventListener) {
+			element.addEventListener(type, delegateHandler, false);
+		} else {
+			element.attachEvent('on' + type, delegateHandler);
 		}
 	}
 
@@ -334,7 +342,7 @@
 			if (i < array.length) {
 				iterator(array[i], next);
 			} else {
-				callback.call(globals);
+				callback.call(w);
 			}
 		}
 		next();
@@ -359,7 +367,7 @@
 					}
 					var args = mjs.O2A(arguments);
 					args.unshift(done);
-					data[self.name].apply(globals, args);
+					data[self.name].apply(w, args);
 				}
 			}
 			next();
@@ -391,17 +399,22 @@
 						var eventKeySplitted = property.split(' ');
 						var eventType = eventKeySplitted.shift();
 						var eventSelector = eventKeySplitted.join(' ');
-						var elements = mjs.O2A(document.querySelectorAll(eventSelector));
-						elements.forEach(function(el) {
-							return mjs.Bind(el, eventType, eventMaps[template][property]);
-						});
+						mjs.O2A(outlet.childNodes).forEach(function(child){
+							if(child.tagName) {
+								return mjs.Delegate(child, eventType, eventSelector, eventMaps[template][property]);
+							}
+						})
+						// var elements = mjs.O2A(document.querySelectorAll(eventSelector));
+						// elements.forEach(function(el) {
+						// 	return mjs.Bind(el, eventType, eventMaps[template][property]);
+						// });
 					}
 				}
 			});
 		}
 	}
 
-	mjs.setRendered = function(template) {
+	mjs.SetRendered = function(template) {
 		if (renderMaps[template]) {
 			renderMaps[template].forEach(function(callback) {
 				callback.call(window);
@@ -434,7 +447,7 @@
 		}
 	}
 
-	mjs.setDirty = function(resource, args) {
+	mjs.SetDirty = function(resource, args) {
 		templates[resource].render.apply(templates[resource], args);
 	}
 
@@ -446,11 +459,11 @@
 
 		function postInitDone() {
 			delete mjs.Define;
-			routie('*', function() {
-				routie(defaultRoute);
+			mjs.Router('*', function() {
+				mjs.Router(defaultRoute);
 			});
 			if (typeof callback === 'function') {
-				callback.call(globals);
+				callback.call(w);
 			}
 		}
 
@@ -479,12 +492,12 @@
 					}
 					mjs.Rendered(resource, config.rendered);
 					if(config.handle) {
-						routie(config.handle, function(){
+						mjs.Router(config.handle, function(){
 							var args = mjs.O2A(arguments);
-							mjs.setDirty.call(globals, resource, args);
+							mjs.SetDirty.call(w, resource, args);
 						}, true);
 					} else {
-						routie.reload();
+						mjs.Router.reload();
 					}
 				};
 				mjs.Load(resource, done);
@@ -508,7 +521,7 @@
 
 	mjs.Bind(document, 'templateRendered', function(e) {
 		var template = e.data.template;
-		mjs.setRendered(template);
+		mjs.SetRendered(template);
 	});
 
 	/* Factory */
@@ -520,7 +533,7 @@
 	} else if (typeof module !== 'undefined' && module.exports) {
 		module.exports = mjs; // CommonJS
 	} else {
-		globals.mjs = mjs; // <script>
+		w.mjs = mjs; // <script>
 	}
 
 	mjs.O2A(document.getElementsByTagName('script')).forEach(function(script){
