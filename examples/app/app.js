@@ -1,25 +1,38 @@
-var content = document.getElementById('content');
-var tasks = window.tasks = new PouchDB('tasks');
 
-mjs.Configure({
-	defaultRoute : '/tasks',
-	compiler: function(name, text) {
-		Handlebars.registerPartial(name, text);
-		return Handlebars.compile(text);
-	}
-});
+function preInit(done, config) {
+	console.log('preinit called');
+	var tasks = window.tasks = storeLocal.get('tasks', []);
+	done();
+}
 
-var MjsContentInstance = new mjs(content, {
-	appUrl: 'app/content/',
-	resources : ['tasks/new', 'tasks'],
-	preInit : function(done, config) {
-		console.log('preInit called');
-		done();
-	},
-	postInit : function(done, config) {
-		console.log('postInit called');
-		done();
-	}
-}, function(){
-	console.log('mjs outlet completed loading')
-});
+function compiler(name, text) {
+	Handlebars.registerPartial(name, text);
+	return Handlebars.compile(text);
+}
+
+function renderer(compiled, data) {
+	return compiled(data);
+}
+
+function postInit(done, config) {
+	console.log('postinit called');
+	done();
+}
+
+function startup() {
+	console.log('gogo power rangers')
+}
+
+
+mjs.Init({
+	defaultRoute: '/tasks',
+	outlet: document.getElementById('outlet'),
+	appUrl: 'app/',
+	resources: ['tasks/new', 'tasks'],
+	preInit: preInit,
+	compiler: compiler,
+	renderer : renderer,
+	postInit: postInit
+}, startup);
+
+
