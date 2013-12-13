@@ -1,21 +1,25 @@
-mjs.Init({
-	preInit: function(done, config) {
-		console.log('preinit called');
-		var tasks = window.tasks = new PouchDB('tasks');
-		done();
-	},
-	outlet: document.getElementById('outlet'),
-	appUrl: 'app/',
-	resources: ['tasks/new', 'tasks'],
+var content = document.getElementById('content');
+var tasks = window.tasks = new PouchDB('tasks');
+
+mjs.Configure({
+	defaultRoute : '/tasks',
 	compiler: function(name, text) {
 		Handlebars.registerPartial(name, text);
 		return Handlebars.compile(text);
+	}
+});
+
+var MjsContentInstance = new mjs(content, {
+	appUrl: 'app/content/',
+	resources : ['tasks/new', 'tasks'],
+	preInit : function(done, config) {
+		console.log('preInit called');
+		done();
 	},
-	defaultRoute: '/tasks',
-	postInit: function(done, config) {
-		console.log('postinit called');
+	postInit : function(done, config) {
+		console.log('postInit called');
 		done();
 	}
-}, function() {
-	console.log('App Started')
+}, function(){
+	console.log('mjs outlet completed loading')
 });

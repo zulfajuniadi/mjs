@@ -7,10 +7,6 @@
 
 (function(w) {
 	'use strict';
-
-	var mjs = {
-		Runtime: {}
-	};
 	var routes = [];
 	var map = {};
 
@@ -208,25 +204,224 @@
 	};
 	addListener();
 
+	/** =====================================================================
+	 *
+	 *	MJS PROTOTYPES STARTS HERE
+	 *
+	 * ======================================================================
+	 */
+
+
+	var mjs = function(outlet, config, callback){
+		if(config === undefined) {
+			config = {};
+		}
+		var self = this;
+		this.outlet = outlet;
+		this.config = config;
+		this.Init(config, callback);
+		return this;
+	}, compiler = function(name, text) {
+		return function(data) {
+			return text;
+		};
+	};
+
+
+	mjs.prototype.Init = function(config, callback) {
+
+		var self = this;
+
+		function postInitDone() {
+			delete mjs.Define;
+			mjs.Router('*', function() {
+				mjs.Router(defaultRoute);
+			});
+			if (typeof callback === 'function') {
+				callback.call(w);
+			}
+		}
+
+		function preInitDone() {
+			self.rootUrl = config.appUrl || self.rootUrl;
+			var resources = config.resources || [];
+
+			mjs.AsyncEach(resources, function(resource, done) {
+				mjs.Define = function(config) {
+					var config = config || {};
+					if (config.events) {
+						self.Events(resource, config.events);
+					}
+					if (config.rendered === undefined) {
+						config.rendered = [];
+					}
+					if (config.data) {
+						self.Data(resource, config.data);
+					} else {
+						self.Data(resource, function(done) {
+							done();
+						});
+					}
+					self.Rendered(resource, config.rendered);
+					if(config.handle) {
+						mjs.Router(config.handle, function(){
+							var args = mjs.O2A(arguments);
+							self.SetDirty.call(self, resource, args);
+						}, true);
+					} else {
+						mjs.Router.reload();
+					}
+				};
+				self.Load(resource, done);
+			}, function() {
+				if (config.postInit) {
+					config.postInit(postInitDone, config);
+				} else {
+					postInitDone();
+				}
+			});
+		}
+
+		if (config.preInit) {
+			config.preInit(preInitDone, config);
+		} else {
+			preInitDone();
+		}
+
+		mjs.Bind(document, 'templateRendered', function(e) {
+			var template = e.data.template;
+			self.SetRendered(template);
+		});
+	}
+
+	mjs.prototype.Load = function(resource, callback) {
+		var self = this;
+		var resourceName = resource;
+		var baseUrl = self.rootUrl + resourceName + '/' + resourceName;
+		if (resource.indexOf('/') > -1) {
+			baseUrl = self.rootUrl + resource;
+		}
+
+		if (self.loaded.indexOf(resource) === -1) {
+			self.GetTemplate(baseUrl + '.html', resource, function() {
+				mjs.GetScript(baseUrl + '.js', function() {
+					if (callback) {
+						self.loaded.push(resource);
+						callback.call(self.templates[resource]);
+					}
+				});
+			});
+		} else {
+			callback.call(self.templates[resource]);
+		}
+	}
+
+	mjs.prototype.GetTemplate = function(url, name, next) {
+		var self = this;
+		mjs.Get(url, function(result) {
+			var template = compiler(name, result);
+			self.templates[name] = {
+				name: name,
+				template: template,
+				render: function() {
+					var context = this;
+					function done(data) {
+						self.outlet.innerHTML = context.template(data);
+						mjs.Fire(document, 'templateRendered', {
+							template: context.name
+						});
+					}
+					var args = mjs.O2A(arguments);
+					args.unshift(done);
+					self.data[context.name].apply(w, args);
+				}
+			}
+			next();
+		});
+	}
+
+	mjs.prototype.Events = function(resource, eventMap) {
+		if (this.eventMaps[resource] === undefined) {
+			this.eventMaps[resource] = {};
+		}
+		this.eventMaps[resource] = eventMap;
+	}
+
+	mjs.prototype.Data = function(resource, callback) {
+		this.data[resource] = callback;
+	}
+
+	mjs.prototype.Rendered = function(template, callbacks) {
+		var self = this;
+		if (!Array.isArray(callbacks)) {
+			callbacks = [callbacks];
+		}
+		if (self.renderMaps[template] === undefined) {
+			self.renderMaps[template] = [];
+		}
+		callbacks.forEach(function(callback) {
+			if (self.renderMaps[template].indexOf(callback) === -1)
+				self.renderMaps[template].push(callback);
+		});
+		if (self.eventMaps[template]) {
+			self.renderMaps[template].push(function(){
+				for (var property in self.eventMaps[template]) {
+					if (self.eventMaps[template].hasOwnProperty(property)) {
+						var eventKeySplitted = property.split(' ');
+						var eventType = eventKeySplitted.shift();
+						var eventSelector = eventKeySplitted.join(' ');
+						mjs.O2A(self.outlet.childNodes).forEach(function(child){
+							if(child.tagName) {
+								return mjs.Delegate(child, eventType, eventSelector, self.eventMaps[template][property]);
+							}
+						})
+					}
+				}
+			});
+		}
+	}
+
+	mjs.prototype.SetRendered = function(template) {
+		var self = this;
+		if (this.renderMaps[template]) {
+			this.renderMaps[template].forEach(function(callback) {
+				callback.call(self);
+			});
+		}
+	}
+
+	mjs.prototype.SetDirty = function(resource, args) {
+		this.templates[resource].render.apply(this.templates[resource], args);
+	}
+
+	var defaultRoute,
+		defaults = {
+			loaded : [],
+			config : {},
+			outlet : document.body,
+			templates : {},
+			rootUrl : '/',
+			eventMaps : {},
+			data : {},
+			renderMaps : {}
+		};
+
+	for(var property in defaults) {
+		if(defaults.hasOwnProperty(property)) {
+			mjs.prototype[property] = defaults[property];
+		}
+	}
+
+	/** =====================================================================
+	 *
+	 *	MJS PROTOTYPES ENDS HERE
+	 *
+	 * ======================================================================
+	 */
+
+	/* Utility Functions */
+
 	mjs.Router = routie;
-
-	var eventMaps = mjs.Runtime.events = {},
-		renderMaps = mjs.Runtime.rendered = {},
-		templates = mjs.Runtime.templates = {},
-		data = mjs.Runtime.data = {},
-		compiler = function(name, text) {
-			return function(data) {
-				return text;
-			};
-		},
-		rootUrl = 'app/',
-		loaded = [],
-		defaultRoute,
-		config,
-		outlet,
-		defaultElement;
-
-	/* Primary Functions */
 
 	mjs.Extend = function(destination, source) {
 		for (var property in source) {
@@ -349,180 +544,11 @@
 	}
 
 	/* Secondary functions */
-
-	mjs.GetTemplate = function(url, name, next) {
-		mjs.Get(url, function(result) {
-			var template = compiler(name, result);
-			templates[name] = {
-				name: name,
-				template: template,
-				render: function() {
-					var self = this;
-
-					function done(data) {
-						outlet.innerHTML = self.template(data);
-						mjs.Fire(document, 'templateRendered', {
-							template: self.name
-						});
-					}
-					var args = mjs.O2A(arguments);
-					args.unshift(done);
-					data[self.name].apply(w, args);
-				}
-			}
-			next();
-		});
+	mjs.Configure = function(options) {
+		var options = options || {};
+		compiler = options.compiler || compiler;
+		defaultRoute = options.defaultRoute || defaultRoute;
 	}
-
-	mjs.Events = function(template, eventMap) {
-		if (eventMaps[template] === undefined) {
-			eventMaps[template] = {};
-		}
-		eventMaps[template] = eventMap;
-	}
-
-	mjs.Rendered = function(template, callbacks) {
-		if (!Array.isArray(callbacks)) {
-			callbacks = [callbacks];
-		}
-		if (renderMaps[template] === undefined) {
-			renderMaps[template] = [];
-		}
-		callbacks.forEach(function(callback) {
-			if (renderMaps[template].indexOf(callback) === -1)
-				renderMaps[template].push(callback);
-		});
-		if (eventMaps[template]) {
-			renderMaps[template].push(function(){
-				for (var property in eventMaps[template]) {
-					if (eventMaps[template].hasOwnProperty(property)) {
-						var eventKeySplitted = property.split(' ');
-						var eventType = eventKeySplitted.shift();
-						var eventSelector = eventKeySplitted.join(' ');
-						mjs.O2A(outlet.childNodes).forEach(function(child){
-							if(child.tagName) {
-								return mjs.Delegate(child, eventType, eventSelector, eventMaps[template][property]);
-							}
-						})
-						// var elements = mjs.O2A(document.querySelectorAll(eventSelector));
-						// elements.forEach(function(el) {
-						// 	return mjs.Bind(el, eventType, eventMaps[template][property]);
-						// });
-					}
-				}
-			});
-		}
-	}
-
-	mjs.SetRendered = function(template) {
-		if (renderMaps[template]) {
-			renderMaps[template].forEach(function(callback) {
-				callback.call(window);
-			});
-		}
-	}
-
-	mjs.Data = function(resource, callback) {
-		data[resource] = callback;
-	}
-
-	mjs.Load = function(resource, callback) {
-		var resourceName = resource;
-		var baseUrl = rootUrl + resourceName + '/' + resourceName;
-		if (resource.indexOf('/') > -1) {
-			baseUrl = rootUrl + resource;
-		}
-
-		if (loaded.indexOf(resource) === -1) {
-			mjs.GetTemplate(baseUrl + '.html', resource, function() {
-				mjs.GetScript(baseUrl + '.js', function() {
-					if (callback) {
-						loaded.push(resource);
-						callback.call(templates[resource]);
-					}
-				});
-			});
-		} else {
-			callback.call(templates[resource]);
-		}
-	}
-
-	mjs.SetDirty = function(resource, args) {
-		templates[resource].render.apply(templates[resource], args);
-	}
-
-	mjs.Init = function(config, callback) {
-		if (callback === undefined) {
-			callback = config;
-			config = {};
-		}
-
-		function postInitDone() {
-			delete mjs.Define;
-			mjs.Router('*', function() {
-				mjs.Router(defaultRoute);
-			});
-			if (typeof callback === 'function') {
-				callback.call(w);
-			}
-		}
-
-		function preInitDone() {
-			compiler = config.compiler || compiler;
-			rootUrl = config.appUrl || rootUrl;
-			defaultRoute = config.defaultRoute || defaultRoute;
-			outlet = config.outlet || outlet;
-			var resources = config.resources || [];
-
-			mjs.AsyncEach(resources, function(resource, done) {
-				mjs.Define = function(config) {
-					var config = config || {};
-					if (config.events) {
-						mjs.Events(resource, config.events);
-					}
-					if (config.rendered === undefined) {
-						config.rendered = [];
-					}
-					if (config.data) {
-						mjs.Data(resource, config.data);
-					} else {
-						mjs.Data(resource, function(done) {
-							done();
-						});
-					}
-					mjs.Rendered(resource, config.rendered);
-					if(config.handle) {
-						mjs.Router(config.handle, function(){
-							var args = mjs.O2A(arguments);
-							mjs.SetDirty.call(w, resource, args);
-						}, true);
-					} else {
-						mjs.Router.reload();
-					}
-				};
-				mjs.Load(resource, done);
-			}, function() {
-				if (config.postInit) {
-					config.postInit(postInitDone, config);
-				} else {
-					postInitDone();
-				}
-			});
-		}
-
-		if (config.preInit) {
-			config.preInit(preInitDone, config);
-		} else {
-			preInitDone();
-		}
-	}
-
-	/* utilities */
-
-	mjs.Bind(document, 'templateRendered', function(e) {
-		var template = e.data.template;
-		mjs.SetRendered(template);
-	});
 
 	/* Factory */
 
