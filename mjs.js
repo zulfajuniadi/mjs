@@ -5,6 +5,20 @@
 /* https://github.com/zulfajuniadi/mjs */
 /* MIT License */
 
+/*
+
+[changelogs]
+
+v0.0.2 14th Dec 2013
+- Fixed event delegation return
+- Multiple handler per resource
+- Fixed crash if no callback is sent for Init function
+- Added template object to renderer function
+
+v0.0.1 13th Dec 2013, Initial Release
+
+ */
+
 (function(w) {
 	'use strict';
 
@@ -175,6 +189,10 @@
 	var checkRoute = function(hash, route) {
 		var params = [];
 		if (route.match(hash, params)) {
+			mjs.Runtime.currentRoute = {
+				hash : hash,
+				params : params
+			};
 			route.run(params);
 			return true;
 		}
@@ -220,8 +238,8 @@
 				return text;
 			};
 		},
-		renderer = function(compiledTemplate, data) {
-			return compiledTemplate(data);
+		renderer = function(outlet, template, data) {
+			return outlet.innerHTML = template.compiled(data);
 		},
 		rootUrl = 'app/',
 		loaded = [],
@@ -254,7 +272,7 @@
 			var elements = mjs.O2A(document.querySelectorAll(target));
 			var elementIndex = elements.indexOf(event.target);
 			if (elementIndex > -1) {
-				handler.call(elements[elementIndex], event);
+				return handler.call(elements[elementIndex], event);
 			}
 		}
 		if (element.addEventListener) {
@@ -357,11 +375,11 @@
 			var template = compiler(name, result);
 			templates[name] = {
 				name: name,
-				template: template,
+				compiled: template,
 				render: function() {
 					var self = this;
 					var done = function(data) {
-						outlet.innerHTML = renderer(self.template, data);
+						renderer(outlet, self, data, templates);
 						mjs.Fire(document, 'templateRendered', {
 							template: self.name
 						});
@@ -370,7 +388,9 @@
 					if (partials[name] !== undefined) {
 						done = function(returnData) {
 							mjs.AsyncEach(partials[name], function(partialName, done) {
-								data[partialName](done);
+								if(data[partialName])
+									return data[partialName](done);
+								done();
 							}, function(datas) {
 								var datas = datas.filter(function(data) {
 									return data !== undefined && data !== null;
@@ -381,7 +401,7 @@
 								});
 
 								mjs.Extend(renderData, returnData);
-								outlet.innerHTML = renderer(self.template, renderData);
+								renderer(outlet, self, renderData, templates);
 								mjs.Fire(document, 'templateRendered', {
 									template: self.name
 								});
@@ -484,10 +504,6 @@
 	}
 
 	mjs.Init = function(config, callback) {
-		if (callback === undefined) {
-			callback = config;
-			config = {};
-		}
 
 		function postInitDone() {
 			delete mjs.Define;
@@ -509,6 +525,9 @@
 
 			mjs.AsyncEach(resources, function(resource, done) {
 				mjs.Define = function(config) {
+					if(templates[resource]) {
+						templates[resource] = mjs.Extend(templates[resource], config);
+					}
 					var config = config || {};
 					if (config.events) {
 						mjs.Events(resource, config.events);
@@ -527,7 +546,14 @@
 						});
 					}
 					mjs.Rendered(resource, config.rendered);
-					if (config.handle) {
+					if(config.handles) {
+						config.handles.forEach(function(handle){
+							mjs.Router(handle, function() {
+								var args = mjs.O2A(arguments);
+								mjs.SetDirty.call(w, resource, args);
+							}, true);
+						});
+					} else if (config.handle) {
 						mjs.Router(config.handle, function() {
 							var args = mjs.O2A(arguments);
 							mjs.SetDirty.call(w, resource, args);

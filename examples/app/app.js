@@ -10,8 +10,8 @@ function compiler(name, text) {
 	return Handlebars.compile(text);
 }
 
-function renderer(compiled, data) {
-	return compiled(data);
+function renderer(outlet, template, data) {
+	outlet.innerHTML = template.compiled(data);
 }
 
 function postInit(done, config) {
